@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+# Datos y artefactos pesados (se regeneran con `make datos` / `make entrenar`)
+data/raw/
+data/processed/
+models/*
+!models/.gitkeep
+reports/*
+!reports/.gitkeep
+.cache/
+*.log
+*.egg-info/
