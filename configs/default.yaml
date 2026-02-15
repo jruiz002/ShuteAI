@@ -1,0 +1,43 @@
+# Configuración central de ShuteAI. Todo hiperparámetro vive aquí (nada "mágico" en el código).
+semilla: 42
+
+datos:
+  max_palabras_texto: 400        # recorte de noticias largas antes de tokenizar
+  # Mapeo LIAR (6 niveles) -> binario. 1 = falsa, 0 = verdadera
+  liar_falsas: ["pants-fire", "false", "barely-true"]
+  liar_verdaderas: ["half-true", "mostly-true", "true"]
+  prop_val_frac: 0.15
+  prop_test_frac: 0.15
+
+propagacion_datos:
+  horas: 48
+  paso_min: 30
+  horas_contexto_modo_b: 6       # modo B: se observan 6 h y se pronostican 42 h
+
+clasificador:
+  modelo_transformer: xlm-roberta-base      # alternativa: dccuchile/bert-base-spanish-wwm-cased
+  max_len_corto: 128
+  max_len_largo: 256
+  batch: 8                       # bajo a propósito: 16 GB de RAM sin swap
+  lr_transformer: 1.0e-5
+  lr_base: 1.0e-3
+  weight_decay: 0.01
+  warmup_frac: 0.1
+  acumulacion: 4                 # batch efectivo = batch x acumulacion = 32
+  epocas_transformer: 4
+  epocas_base: 15
+  paciencia: 3                   # early stopping
+  dropout: 0.3
+  tfidf_terminos: 5000
+  umbral_falsa: 0.5
+
+propagacion:
+  hidden: 256
+  heads: 4
+  dropout: 0.2
+  batch: 32
+  lr: 1.0e-3
+  epocas: 80
+  paciencia: 12
+  huber_delta: 0.5
+  muestras_incertidumbre: 200    # remuestreo de residuos de validación (banda 10-90 %)
