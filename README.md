@@ -1,7 +1,7 @@
 # 🛡️ ShuteAI
 
 **Agente que detecta noticias probablemente falsas y pronostica cómo se propagarían en redes sociales durante 48 horas.**
-Proyecto integrador de Deep Learning (UVG, 2026). Antes llamado *VeritasAI*; el plan original está en `VeritasIA_Plan_de_Ejecucion.pdf`.
+Proyecto integrador de Deep Learning (UVG, 2026). El plan de ejecución original está en el PDF de la raíz del repositorio.
 
 > **Qué hace, en una frase:** pegas una noticia → un Transformer estima `P(verdadera)` y `P(falsa)` calibradas →
 > si `P(falsa)` supera un umbral, un modelo encoder-decoder LSTM con atención pronostica la curva de
@@ -21,11 +21,10 @@ Proyecto integrador de Deep Learning (UVG, 2026). Antes llamado *VeritasAI*; el 
 8. [Resultados detallados](#8-resultados-detallados)
 9. [Decisiones de ingeniería y desviaciones del plan](#9-decisiones-de-ingeniería-y-desviaciones-del-plan)
 10. [Limitaciones y ética](#10-limitaciones-y-ética)
-11. [Pendientes del equipo](#11-pendientes-del-equipo)
-12. [Calidad de código y pruebas](#12-calidad-de-código-y-pruebas)
-13. [Solución de problemas](#13-solución-de-problemas)
-14. [Mapa temas del curso → código](#14-mapa-temas-del-curso--código)
-15. [Referencias y licencias de datos](#15-referencias-y-licencias-de-datos)
+11. [Calidad de código y pruebas](#11-calidad-de-código-y-pruebas)
+12. [Solución de problemas](#12-solución-de-problemas)
+13. [Mapa temas del curso → código](#13-mapa-temas-del-curso--código)
+14. [Referencias y licencias de datos](#14-referencias-y-licencias-de-datos)
 
 ---
 
@@ -42,8 +41,8 @@ Todos los números salen de `reports/` y se regeneran con `make evaluar`. **Son 
 | Propagación modo B (6 h → 42 h) | PatchTST MAE **0.149** vs SIR **0.294**; curva promedio anclada 0.173 | Los modelos neuronales ganan a SIR con claridad, y a la curva promedio por poco. |
 | Banda de incertidumbre | Cobertura **75 %** (nominal 80 %) en prueba | Calibrada empíricamente con residuos de validación. |
 | ¿Se reproduce «falsas se difunden más» (Vosoughi 2018)? | Twitter15/16: sí, levemente (alcance mediano 19 vs 15). PHEME: **no** (6 vs 12). | Ver [§8.3](#83-falsas-vs-verdaderas). Los dos corpus miden cosas distintas. |
-
-**El agente completo en 50 noticias propias aún no está medido**: el conjunto lo debe armar y verificar el equipo ([§11](#11-pendientes-del-equipo)).
+| **Agente en 50 noticias propias** (25 falsas + 25 verdaderas, 10 verificadores) | Exactitud **0.78**, F1 macro **0.778**, AUC **0.888** | Más alto que en FakeDeS, pero probablemente **inflado**: 24 de 25 falsas conservan marcas de formato viral. Ver [§8.5](#85-agente-en-las-50-noticias-propias). |
+| Decisión `xlmr_en_es` vs `xlmr_solo_es` | Se **mantiene** `xlmr_en_es` | En las 50 noticias no hay diferencia significativa (McNemar p = 1.0) y `xlmr_en_es` calibra mejor. Ver [§8.6](#86-decisión-del-modelo-final). |
 
 ---
 
@@ -131,7 +130,7 @@ Todo es **público** y se descarga con `python -m shuteai.datos.descarga` (idemp
 | **LIAR** (Wang, 2017) | 12.8 k afirmaciones cortas de PolitiFact en 6 niveles | en | Clasificador (preentrenamiento). `pants-fire, false, barely-true → falsa`; `half-true, mostly-true, true → verdadera` | 10 246 / 1 279 / 1 277 |
 | **Twitter15 y Twitter16** (Ma et al., 2017) | Tuit fuente + etiqueta (`true/false/unverified/non-rumor`) + árbol de retuits con retraso en minutos | en | **Propagación** (todas las etiquetas) y clasificador (solo `true`/`false`) | 2 139 curvas; 738 / 148 / 169 tuits para clasificar |
 | **PHEME** (Kochkina et al., 2018) | Hilos de 9 eventos con respuestas y marcas de tiempo | en | **Validación externa** de propagación (solo hilos de rumor, 2 402) | — |
-| **Conjunto propio** | 50 noticias (25 falsas + 25 verdaderas) | es | Evaluación final del agente, **nunca para entrenar** | **pendiente** |
+| **Conjunto propio** (`data/eval_propia/`) | 50 noticias (25 falsas + 25 verdaderas) etiquetadas por 10 verificadores de 7 países, cada una con su enlace de verificación | es | Evaluación final del agente, **nunca para entrenar** | 50 |
 
 **Particiones sin fugas.** Twitter/PHEME se dividen con un *hash del ID* (70/15/15), no con una semilla: el mismo tuit cae siempre en la misma partición para clasificación y propagación. Los textos duplicados exactos se eliminan antes de dividir.
 
@@ -331,13 +330,49 @@ Cada variante cambia **una** cosa respecto a su referencia (misma semilla y dato
 
 > Notas: en XLM-R solo-español las clases están balanceadas (50/50), por lo que quitar los pesos de clase **no puede** diferir mucho; el efecto es visible en la BiLSTM (datos 44 % falsas). La ablación de dropout se hizo solo en la BiLSTM; XLM-R usa dropout 0.1 fijo. Con una sola semilla las diferencias pequeñas (≲0.02 de F1) **no son concluyentes**.
 
+### 8.5 Agente en las 50 noticias propias
+
+**Conjunto** (`data/eval_propia/noticias_prueba.csv`): 25 noticias calificadas como **falsas** y 25 como **verdaderas** por verificadores reales: Chequeado (14), Colombiacheck (7), Bolivia Verifica (7), Ecuador Chequea (5), Animal Político (5), Newtral (3), La Silla Vacía (3), Verificado (3), Maldita.es (2) y Cotejo.info (1). Cada fila trae `url_verificacion` con el veredicto publicado; todas las URL se abrieron para confirmar veredicto y fecha (2024–2026). Las falsas reproducen la afirmación **tal como circuló**; las verdaderas, la afirmación que el verificador calificó como verdadera. Validación: `python -m shuteai.datos.eval_propia` → `OK: 50 noticias (25 falsas, 25 verdaderas)`.
+
+**Cómo se midió.** Los modelos de esta sección son una **reproducción completa del pipeline en CPU** (Windows, sin GPU), con la misma semilla y datos. Sus métricas de prueba no son idénticas a las de §8.1: en español `xlmr_en_es` obtuvo F1 **0.680** (ECE calibrado 0.058, T = 1.91) y `xlmr_solo_es` **0.664** (ECE 0.084, T = 1.71); el orden entre ambos **se invirtió** respecto de la corrida original. `python -m shuteai.agente.evaluar` mide el agente con el modelo desplegado; para comparar los dos candidatos se clasificaron las mismas 50 noticias con cada uno, usando la misma limpieza (`preparar_prompt`) y umbral 0.5.
+
+| Modelo | Acc | F1 macro | AUC | ECE | Brier | Falsas detectadas | Verdaderas marcadas falsas |
+|---|---|---|---|---|---|---|---|
+| **xlmr_en_es** (desplegado) | 0.78 | **0.778** | 0.888 | **0.148** | 0.159 | 17 / 25 | 3 / 25 |
+| xlmr_solo_es | 0.76 | 0.758 | **0.910** | 0.191 | **0.153** | 17 / 25 | 4 / 25 |
+
+**Comparación pareada.** Los modelos discrepan en 11 noticias: 6 las acierta solo `xlmr_en_es` y 5 solo `xlmr_solo_es`. McNemar exacto: **p = 1.0**. Bootstrap (5 000 remuestreos) de la diferencia de F1 (`solo_es − en_es`): **−0.019, IC 95 % [−0.156, 0.119]**. No hay evidencia de que uno sea mejor que el otro en este conjunto.
+
+**Agente completo** (`python -m shuteai.agente.evaluar` → `reports/agente_resultados.json`, CPU): exactitud **0.78**, F1 macro **0.778**, AUC **0.888**, matriz de confusión `[[22, 3], [8, 17]]` (filas = real verdadera/falsa). Tiempo medio **0.13 s** por noticia (p95 0.17 s, sin contar la carga inicial de modelos). El propagador se ejecutó en **20 de 50** noticias (17 falsas acertadas + 3 verdaderas marcadas falsas). La banda de incertidumbre reproducida cubre el **76 %** del alcance final en prueba (nominal 80 %; 75 % en la corrida original).
+
+**Lectura honesta.**
+1. Ambos dejan pasar **8 de 25 falsas**: son más precisos al marcar falsas (17 de 20 marcadas lo eran) que exhaustivos al encontrarlas.
+2. El 0.78 es **más alto** que en FakeDeS (0.68), y hay una razón para desconfiar: **24 de 25 falsas** conservan marcas de formato viral («circula un video», «cadena de WhatsApp», «última hora»), frente a **7 de 25 verdaderas**, que suelen ser declaraciones de funcionarios. El clasificador detecta justo ese tipo de patrón, así que parte del acierto puede venir del **formato y no del contenido**.
+3. Con n = 50, el intervalo de confianza de la exactitud es de ±12 puntos aprox.
+
+### 8.6 Decisión del modelo final
+
+**Se mantiene `xlmr_en_es`**; no se ejecutó `make embeddings entrenar-prop` con `xlmr_solo_es` porque no hubo cambio.
+
+| Criterio | xlmr_en_es | xlmr_solo_es | Favorece |
+|---|---|---|---|
+| F1 macro, 50 noticias propias | **0.778** | 0.758 | en_es (no significativo, p = 1.0) |
+| AUC, 50 noticias propias | 0.888 | **0.910** | solo_es (pequeño) |
+| ECE, 50 noticias propias | **0.148** | 0.191 | en_es |
+| F1 español, FakeDeS (corrida original / reproducción CPU) | 0.645 / **0.680** | **0.686** / 0.664 | inestable entre corridas |
+| ECE calibrado español (reproducción CPU) | **0.058** | 0.084 | en_es |
+| Idiomas | es + en | solo es | en_es |
+| Costo de cambiar | — | regenerar embeddings y reentrenar el propagador | en_es |
+
+La ventaja de `xlmr_solo_es` en español (§8.1) **no se reprodujo** y no aparece en las 50 noticias reales. El agente decide con un umbral sobre `P(falsa)`, así que la mejor calibración pesa, y cambiar tiene costo sin beneficio demostrado. Revisar con un conjunto propio más grande, redactado con formato neutro, y varias semillas.
+
 ---
 
 ## 9. Decisiones de ingeniería y desviaciones del plan
 
 | Tema | Decisión | Por qué |
 |---|---|---|
-| XLM-R final | `xlmr_en_es` aunque `xlmr_solo_es` gana en español (0.686 vs 0.645) | Es **bilingüe** (el plan admite ambos idiomas), el mejor calibrado (ECE 0.026) y sus embeddings ya alimentan al propagador. Si tu prioridad es español, cambia con `--final xlmr_solo_es` y regenera embeddings ([§7](#7-reproducir-todo-el-pipeline)). |
+| XLM-R final | `xlmr_en_es` aunque `xlmr_solo_es` ganó en español en la corrida original (0.686 vs 0.645) | Confirmado con las 50 noticias propias ([§8.6](#86-decisión-del-modelo-final)): sin diferencia significativa (McNemar p = 1.0), mejor calibrado y la ventaja en español no se reprodujo. Es **bilingüe** y sus embeddings ya alimentan al propagador. Para cambiar: `--final xlmr_solo_es` y `make embeddings entrenar-prop` ([§7](#7-reproducir-todo-el-pipeline)). |
 | Embeddings congelados en XLM-R | Matriz de palabras congelada | 16 GB sin swap: el entrenamiento completo fue terminado por el sistema (código 137) |
 | Hiperparámetros XLM-R | lr 1e-5, batch efectivo 32 | Con 2e-5 y batch 8 **colapsó** a azar (pérdida 0.693 en todas las épocas) |
 | Propagador LSTM | + máscara de *padding* en la atención, tiempo normalizado como entrada, *scheduled sampling* | El código del plan usaba teacher forcing puro (sesgo de exposición) y no enmascaraba el relleno |
@@ -364,17 +399,7 @@ Cada variante cambia **una** cosa respecto a su referencia (misma semilla y dato
 
 ---
 
-## 11. Pendientes del equipo
-
-1. **Confirmar con el catedrático** (primer día, según el plan): (a) que se acepta un Transformer preentrenado con fine-tuning como clasificador final; (b) que la propagación se modele con datos públicos de Twitter.
-2. **Armar las 50 noticias propias** en `data/eval_propia/noticias_prueba.csv` (25 falsas verificadas por medios de verificación + 25 verdaderas de medios formales; **con enlace de verificación obligatorio**). Valida con `python -m shuteai.datos.eval_propia` y mide con `python -m shuteai.agente.evaluar`. *No se inventaron noticias «verificadas»: la etiqueta necesita evidencia real.*
-3. **Informe técnico** (tipo artículo), **presentación** con demo en vivo y **video de respaldo**.
-4. *(Opcional)* VAE condicional de escenarios (S14); comparar más semillas para volver concluyentes las ablaciones.
-5. *(Opcional)* Si el set propio muestra que el español rinde peor de lo esperado, cambiar a `xlmr_solo_es` o a BETO.
-
----
-
-## 12. Calidad de código y pruebas
+## 11. Calidad de código y pruebas
 
 ```bash
 make test     # 28 pruebas (pytest)
@@ -386,7 +411,7 @@ make lint     # ruff check + format
 
 ---
 
-## 13. Solución de problemas
+## 12. Solución de problemas
 
 | Síntoma | Causa y solución |
 |---|---|
@@ -396,10 +421,14 @@ make lint     # ruff check + format
 | `models/` ocupa ~3.6 GB | Cada XLM-R pesa ~1.1 GB. Borra los experimentos que no uses (`xlmr_mezcla`, `abl_*`…); `final` apunta a `xlmr_en_es` |
 | Un `true`/`false` del YAML se vuelve booleano | Entrecomilla los textos en `default.yaml` (ya pasó con las etiquetas de LIAR) |
 | Descarga falla | Reintenta `python -m shuteai.datos.descarga`; las URLs están en `datos/descarga.py` |
+| **Windows:** `UnicodeDecodeError` al procesar PHEME | El tar trae ~137 k archivos `._*` de macOS que en Windows se extraen como archivos normales. Bórralos (`find data/raw -name "._*" -delete`) y repite `python -m shuteai.datos.propagacion` |
+| **Windows:** `UnicodeEncodeError` (`'charmap'`) al escribir reportes | Activa el modo UTF-8 de Python: `$env:PYTHONUTF8=1` (PowerShell) o `export PYTHONUTF8=1` |
+| **Windows:** `WinError 1314` al crear `models/clasificador/final` | Crear symlinks exige Modo de desarrollador o administrador. `evaluar --final` ya escribió `temperatura.json`; crea una unión: `cmd /c mklink /J models\clasificador\final models\clasificador\xlmr_en_es` |
+| **Windows:** `make` y `.venv/bin/python` no existen | Ejecuta los comandos de cada objetivo del `Makefile` con `.venv\Scripts\python`. En CPU (16 núcleos) XLM-R `en_es` tardó ~2 h 50 min y `solo_es` ~2 h |
 
 ---
 
-## 14. Mapa temas del curso → código
+## 13. Mapa temas del curso → código
 
 | Sesión | Tema | Dónde |
 |---|---|---|
@@ -418,7 +447,7 @@ make lint     # ruff check + format
 
 ---
 
-## 15. Referencias y licencias de datos
+## 14. Referencias y licencias de datos
 
 - Vosoughi, Roy, Aral (2018). *The spread of true and false news online.* Science.
 - Posadas-Durán et al. (2019). *Detection of fake news in a new corpus for the Spanish language.* (CC BY 4.0) · FakeDeS, IberLEF 2021.
