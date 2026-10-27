@@ -88,6 +88,14 @@ make datos          # descarga y prepara los 4 conjuntos públicos (~630 MB)
 ```
 Si ya tienes los modelos entrenados en `models/`, basta `make app`.
 
+**Sin entrenar: descargar los modelos (~950 MB).** El clasificador final y los propagadores están en Hugging Face, en [`joseauco/shuteai-modelos`](https://huggingface.co/joseauco/shuteai-modelos). El repositorio ya trae `clasificador/final` como carpeta real, así que no hace falta crear el symlink. `hf` viene con `transformers`:
+
+```bash
+.venv/bin/hf download joseauco/shuteai-modelos --local-dir models   # Windows: .venv\Scripts\hf
+make app
+```
+Para usar la app basta `make instalar` y esta descarga. `make datos` solo hace falta para entrenar o evaluar.
+
 ---
 
 ## 4. Estructura del repositorio
@@ -415,7 +423,7 @@ make lint     # ruff check + format
 
 | Síntoma | Causa y solución |
 |---|---|
-| `Faltan los modelos entrenados` en la app | Falta `models/clasificador/final` o `models/propagacion/`. Ejecuta `make entrenar-transformer entrenar-prop` |
+| `Faltan los modelos entrenados` en la app | Falta `models/clasificador/final` o `models/propagacion/`. Descárgalos ([§3](#3-instalación)) o ejecuta `make entrenar-transformer entrenar-prop` |
 | El equipo se traba o el proceso muere con código 137 | Falta de RAM (sin swap). Cierra apps pesadas, baja `clasificador.batch` en `configs/default.yaml` (y sube `acumulacion` para conservar el batch efectivo) |
 | El Transformer no aprende (pérdida ≈ 0.693) | lr demasiado alto para XLM-R: usa 1e-5 y acumulación de gradiente |
 | `models/` ocupa ~3.6 GB | Cada XLM-R pesa ~1.1 GB. Borra los experimentos que no uses (`xlmr_mezcla`, `abl_*`…); `final` apunta a `xlmr_en_es` |
